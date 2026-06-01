@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>quilojaules · calculadora de energia por trecho</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>quilo<span class="accent">·</span>jaules</h1>
+    <p class="subtitle">Desenhe ou carregue uma rota e estime o trabalho mecânico (kJ) e as calorias para pedalá-la. Modelo de potência <code>P = (F<sub>roll</sub> + F<sub>aero</sub> + F<sub>grav</sub>) · v</code>, integrado por segmento. Elevação do FABDEM. Recorte a rota e divida-a em trechos com parâmetros próprios.</p>
+  </header>
+
+  <!-- Route input -->
+  <div class="dropzone" id="dropzone">
+    <div class="dropzone-title" id="dz-title">arraste_um_arquivo.gpx</div>
+    <div class="dropzone-sub">
+      ou <button id="browse-btn">procurar</button> ·
+      <button id="sample-btn">rota de exemplo (SP)</button> ·
+      <button id="draw-btn">desenhar no mapa</button>
+    </div>
+    <div class="dropzone-sub" style="margin-top:6px">
+      estado: <button id="export-ttl">exportar .ttl.gz</button> ·
+      <button id="import-ttl">importar</button>
+    </div>
+    <input type="file" id="file-input" accept=".gpx,application/gpx+xml,text/xml" hidden>
+    <input type="file" id="ttl-input" accept=".ttl,.gz,.ttl.gz,application/gzip,text/turtle" hidden>
+  </div>
+
+  <div class="column">
+    <main>
+      <!-- Drawing toolbar (shown in draw mode) -->
+      <div class="panel draw-toolbar hidden" id="draw-toolbar">
+        <span class="draw-status" id="draw-status">Modo desenho: clique no mapa para adicionar pontos.</span>
+        <label class="draw-toggle"><input type="checkbox" id="snap-roads" checked> seguir vias (OSRM)</label>
+        <button id="draw-undo" class="btn-mini">desfazer</button>
+        <button id="draw-clear" class="btn-mini">limpar</button>
+        <button id="draw-done" class="btn-mini btn-accent">concluir</button>
+      </div>
+
+      <!-- Map is always visible so the 3 layers can be explored before a route. -->
+      <div class="panel map-panel">
+        <div class="panel-title"><span>— Rota</span></div>
+        <div id="map"></div>
+        <div class="hover-readout" id="hover-readout">
+          <span class="label">d</span><span class="val" id="hr-d">—</span>
+          <span class="label" style="margin-left:10px">↑</span><span class="val" id="hr-e">—</span>
+          <span class="label" style="margin-left:10px">P</span><span class="val" id="hr-p">—</span>
+        </div>
+      </div>
+
+      <!-- Topography parameters (cell below the map) -->
+      <div class="panel" id="topo-panel">
+        <div class="panel-title"><span>— Topografia colorida</span></div>
+        <div id="layer-panel"></div>
+      </div>
+
+      <div id="results-area" class="hidden">
+        <!-- Clipping range -->
+        <div class="panel range-panel">
+          <div class="panel-title">
+            <span>— Recorte da rota</span>
+            <span class="range-labels">
+              <span id="range-label-start">0.0 km</span>
+              <span class="arrow">→</span>
+              <span id="range-label-end">— km</span>
+              <span class="total" id="range-label-total"></span>
+              <button id="range-reset" class="range-reset">reset</button>
+            </span>
+          </div>
+          <div class="range-slider-wrap">
+            <div class="range-track"></div>
+            <div class="range-fill" id="range-fill" style="left:0; right:0"></div>
+            <input type="range" id="range-start" min="0" max="1000" value="0">
+            <input type="range" id="range-end"   min="0" max="1000" value="1000">
+          </div>
+        </div>
+
+        <!-- Totals -->
+        <div class="results">
+          <div class="result-card primary">
+            <div class="result-label">— Trabalho mecânico</div>
+            <div class="result-value"><span id="r-energy">—</span><span class="result-unit">kJ</span></div>
+            <div class="result-sub" id="r-energy-sub">—</div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">— Calorias</div>
+            <div class="result-value"><span id="r-kcal">—</span><span class="result-unit">kcal</span></div>
+            <div class="result-sub">~24% eficiência bruta</div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">— Potência média</div>
+            <div class="result-value"><span id="r-power">—</span><span class="result-unit">W</span></div>
+            <div class="result-sub" id="r-power-sub">—</div>
+          </div>
+        </div>
+
+        <!-- Elevation + power chart -->
+        <div class="panel chart-panel" id="chart-panel">
+          <div class="panel-title">
+            <span>— Perfil de elevação &amp; potência</span>
+            <span class="legend">
+              <span class="legend-item"><span class="legend-dot" style="background:rgba(22,20,15,0.6)"></span>elevação</span>
+              <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>potência</span>
+              <span class="seg-toggle" id="chart-mode">
+                <button type="button" data-mode="split" class="active">dividir</button>
+                <button type="button" data-mode="zoom">zoom</button>
+              </span>
+              <button type="button" id="chart-zoom-reset" class="btn-mini hidden">reset zoom</button>
+            </span>
+          </div>
+          <div class="chart-wrap">
+            <svg class="chart-svg" id="chart" viewBox="0 0 800 220" preserveAspectRatio="none"></svg>
+            <div class="chart-select" id="chart-select"></div>
+          </div>
+        </div>
+
+        <!-- Segment table -->
+        <div class="panel seg-panel">
+          <div class="panel-title">
+            <span>— Trechos · parâmetros por segmento</span>
+            <button id="seg-clear" class="range-reset">limpar divisões</button>
+          </div>
+          <div class="seg-help">Clique no gráfico ou na linha do mapa para dividir a rota. Células vazias herdam o perfil base.</div>
+          <div class="seg-table-wrap">
+            <table class="seg-table" id="seg-table"></table>
+          </div>
+        </div>
+
+        <!-- Breakdown -->
+        <div class="panel">
+          <div class="panel-title"><span>— Onde vão os watts</span></div>
+          <div class="breakdown-bar" id="breakdown-bar"></div>
+          <div class="breakdown-legend" id="breakdown-legend"></div>
+        </div>
+      </div>
+
+      <div id="empty-state" class="empty-state">
+        <div class="empty-state-art">  ╱╲          ╱╲╱╲
+ ╱  ╲    ╱╲   ╱      ╲   ╱╲
+╱    ╲╱╲╱  ╲╱╲╱        ╲╱  ╲</div>
+        Carregue, desenhe ou escolha o exemplo para ver o cálculo.
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    Potência negativa é zerada (descer/frear ≠ energia recuperada). Em rotas gravadas, a velocidade vem dos timestamps do GPX; em rotas planejadas, assume-se esforço aproximadamente constante por tipo de terreno (subida / plano / descida) e inverte-se a equação de potência para achar a velocidade. Calorias assumem ~24% de eficiência bruta: <code>kcal = (kJ / 0.24) / 4.184</code>. Elevação: <a href="https://pedalhidrografi.co">FABDEM</a> via <code>telhas.pedalhidrografi.co</code>. Tiles © OpenStreetMap · Esri. Tudo, exceto tiles/elevação/roteamento, roda localmente no navegador.
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/geotiff@3.0.5/dist-browser/geotiff.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+# quilojaules — vocabulary + SHACL shapes for the saved state datagraph.
+# The app exports a graph (one qj:AppState) conforming to these shapes and can
+# re-import it to restore the full state: topography config, base profile,
+# per-segment configurations, split points, the clip window, and the source
+# route (its points encoded in qj:coordinates). Compressed as .ttl.gz on disk.
+
+@prefix qj:   <https://pedalhidrografi.co/quilojaules#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+
+# ─── Vocabulary ──────────────────────────────────────────────────────────────
+qj:AppState         a owl:Class ; rdfs:label "Estado do quilojaules" .
+qj:TopographyConfig a owl:Class ; rdfs:label "Configuração da camada topográfica" .
+qj:Profile          a owl:Class ; rdfs:label "Perfil base (parâmetros padrão)" .
+qj:Segment          a owl:Class ; rdfs:label "Trecho (configuração por segmento)" .
+qj:Route            a owl:Class ; rdfs:label "Rota de origem" .
+
+# ─── AppState shape ──────────────────────────────────────────────────────────
+qj:AppStateShape a sh:NodeShape ;
+    sh:targetClass qj:AppState ;
+    sh:property [ sh:path qj:topography ; sh:class qj:TopographyConfig ;
+                  sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:baseProfile ; sh:class qj:Profile ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:route ; sh:class qj:Route ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:segment ; sh:class qj:Segment ] ;
+    sh:property [ sh:path qj:split ; sh:datatype xsd:decimal ;
+                  sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:clipStart ; sh:datatype xsd:decimal ;
+                  sh:minInclusive 0 ; sh:maxInclusive 1000 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:clipEnd ; sh:datatype xsd:decimal ;
+                  sh:minInclusive 0 ; sh:maxInclusive 1000 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:created ; sh:datatype xsd:dateTime ; sh:maxCount 1 ] .
+
+# ─── Topography config ───────────────────────────────────────────────────────
+qj:TopographyConfigShape a sh:NodeShape ;
+    sh:targetClass qj:TopographyConfig ;
+    sh:property [ sh:path qj:minElevation ; sh:datatype xsd:decimal ; sh:minCount 1 ] ;
+    sh:property [ sh:path qj:maxElevation ; sh:datatype xsd:decimal ; sh:minCount 1 ] ;
+    sh:property [ sh:path qj:maxSlope ; sh:datatype xsd:decimal ;
+                  sh:minExclusive 0 ; sh:minCount 1 ] ;
+    sh:property [ sh:path qj:maxSampleMB ; sh:datatype xsd:decimal ;
+                  sh:minInclusive 0 ;
+                  rdfs:comment "Orçamento de download por visualização do mapa; 0 = sem limite." ] .
+
+# ─── Base profile + per-segment overrides share the same physical parameters ──
+# Each is optional on a Segment (absent = herda o perfil base).
+qj:ProfileShape a sh:NodeShape ;
+    sh:targetClass qj:Profile ;
+    sh:property [ sh:path qj:riderKg       ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:bikeKg        ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:cda           ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:crr           ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:eff           ; sh:datatype xsd:decimal ; sh:minInclusive 0 ; sh:maxInclusive 1 ] ;
+    sh:property [ sh:path qj:rho           ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:headwindKmh   ; sh:datatype xsd:decimal ] ;
+    sh:property [ sh:path qj:powerClimbW   ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:powerFlatW    ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:powerDescW    ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:gradeThPct    ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+    sh:property [ sh:path qj:maxDescentKmh ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] .
+
+# ─── Segment ─────────────────────────────────────────────────────────────────
+# Ordered by qj:index; qj:label is the free-text trecho name. Any physical
+# parameter (same predicates as qj:Profile) may be present as an override.
+qj:SegmentShape a sh:NodeShape ;
+    sh:targetClass qj:Segment ;
+    sh:property [ sh:path qj:index ; sh:datatype xsd:integer ;
+                  sh:minInclusive 0 ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:label ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:riderKg       ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:bikeKg        ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:cda           ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:crr           ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:eff           ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:rho           ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:headwindKmh   ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:powerClimbW   ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:powerFlatW    ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:powerDescW    ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:gradeThPct    ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:maxDescentKmh ; sh:datatype xsd:decimal ; sh:maxCount 1 ] .
+
+# ─── Route ───────────────────────────────────────────────────────────────────
+# Points are encoded compactly in qj:coordinates as "lat,lon,ele,t" tuples
+# joined by ";" (lat/lon in degrees, ele in metres, t in ms epoch or 0). This
+# keeps large GPX tracks small; qj:pointCount must match the tuple count.
+qj:RouteShape a sh:NodeShape ;
+    sh:targetClass qj:Route ;
+    sh:property [ sh:path qj:pointCount ; sh:datatype xsd:integer ;
+                  sh:minInclusive 2 ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path qj:coordinates ; sh:datatype xsd:string ;
+                  sh:minCount 1 ; sh:maxCount 1 ;
+                  sh:pattern "^-?[0-9.]+,-?[0-9.]+," ] .
