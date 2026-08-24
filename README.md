@@ -135,6 +135,6 @@ instantânea — plotada na distância atingida no meio do intervalo.
   POIs, export/import RDF).
 - `shapes.ttl` — vocabulário + formas SHACL do grafo de estado.
 
-Elevação: FABDEM via `telhas.pedalhidrografi.co` (fallback Open-Meteo).
+Elevação: FABDEM via `fabdem.pedalhidrografi.co` (fallback Open-Meteo).
 As pastas `pedalhidrografico/` e `old-applet/` são referência, não fazem parte
 do app.

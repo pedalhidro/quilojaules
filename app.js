@@ -161,7 +161,7 @@ function analyze(points, p, opts) {
 // ============================================================================
 // 2. FABDEM elevation  (ported from pedalhidrografico/web/app.js)
 // ============================================================================
-const FABDEM_BASE_URL = 'https://telhas.pedalhidrografi.co/fabdem/';
+const FABDEM_BASE_URL = 'https://fabdem.pedalhidrografi.co/';
 const FABDEM_ARCSEC   = 1 / 3600;   // ~30 m at the equator
 
 let _geoTiffPromise = null;
